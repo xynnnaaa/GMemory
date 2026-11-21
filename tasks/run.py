@@ -42,13 +42,15 @@ class TaskManager:
     mem_config: dict = field(default_factory=dict)   # memory configs
 
 
-def build_task(task: str, mas_type: str, memory_type: str, max_steps: int) -> TaskManager:
+def build_task(task: str, mas_type: str, memory_type: str, max_steps: int, *, log_to_stderr: bool = False) -> TaskManager:
 
     with open(CONFIG.get(task).get('env_config_path')) as reader:
         config = yaml.safe_load(reader)
 
     env: BaseEnv = get_env(task, config, max_steps)
-    recorder: BaseRecorder = get_recorder(task, working_dir=WORKING_DIR, namespace='total_task')
+    recorder: BaseRecorder = get_recorder(
+        task, working_dir=WORKING_DIR, namespace='total_task', log_to_stderr=log_to_stderr
+    )
     tasks: list[dict] = get_task(task)
     mas_workflow: MetaMAS = get_mas(mas_type)
     mas_config: dict = CONFIG.get(mas_type, {})
@@ -132,6 +134,9 @@ if __name__ == '__main__':
     parser.add_argument('--use_projector', action='store_true', help='whether to use role projector.')
     parser.add_argument('--hop', type=int, default=1, help='hop for traj similarity.')
 
+    parser.add_argument('--working_dir', help='Directory for this run’s memory and checkpoints.')
+    parser.add_argument('--log_to_stderr', action='store_true', help='Send the timestamped task log to stderr.')
+
     args = parser.parse_args()
 
     task: str = args.task
@@ -142,13 +147,15 @@ if __name__ == '__main__':
     reasoning_type: str = args.reasoning
     
     # dir
-    WORKING_DIR = os.path.join('./.db', get_model_type(model_type), task, mas_type, f'{mas_memory_type}')
+    WORKING_DIR = args.working_dir or os.path.join('./.db', get_model_type(model_type), task, mas_type, mas_memory_type)
     # if os.path.exists(WORKING_DIR):
     #     shutil.rmtree(WORKING_DIR)
     os.makedirs(WORKING_DIR, exist_ok=True)
     
     # run tasks
-    task_configs: TaskManager = build_task(task, mas_type, mas_memory_type, max_trials)
+    task_configs: TaskManager = build_task(
+        task, mas_type, mas_memory_type, max_trials, log_to_stderr=args.log_to_stderr
+    )
     task_configs.mas_config['successful_topk'] = args.successful_topk
     task_configs.mas_config['failed_topk'] = args.failed_topk
     task_configs.mas_config['insights_topk'] = args.insights_topk

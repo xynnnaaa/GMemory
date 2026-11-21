@@ -3,6 +3,7 @@
 import json
 import math
 import os
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, replace
@@ -112,7 +113,15 @@ class CoMem(MASMemoryBase):
     def _ask(self, instruction, evidence):
         raw = self.llm_model([Message('system', instruction), Message('user', json.dumps(evidence))],
                              temperature=0)
-        return json.loads(raw.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
+        body = (raw or '').strip()
+        decoder = json.JSONDecoder()
+        try:
+            return decoder.raw_decode(body)[0]
+        except json.JSONDecodeError:
+            fence = re.search(r'^[ \t]*```(?:json)?[ \t]*\r?\n', body, re.IGNORECASE | re.MULTILINE)
+            if fence:
+                return decoder.raw_decode(body[fence.end():].lstrip())[0]
+            raise
 
     def save_task_context(self, label, feedback=None, *, reward):
         reward = float(reward)

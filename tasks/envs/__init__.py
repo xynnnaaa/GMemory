@@ -86,12 +86,12 @@ def get_env(task: str, env_config: dict, max_trials: int) -> BaseEnv:
     
     return ENVS.get(task)(env_config, max_trials)
 
-def get_recorder(task: str, working_dir: str, namespace: str) -> BaseRecorder:
+def get_recorder(task: str, working_dir: str, namespace: str, *, log_to_stderr: bool = False) -> BaseRecorder:
     
     if RECORDERS.get(task) is None:
         raise ValueError(f'Unsupported task type: {task}')
     
-    return RECORDERS.get(task)(working_dir=working_dir, namespace=namespace)
+    return RECORDERS[task](working_dir=working_dir, namespace=namespace, log_to_stderr=log_to_stderr)
 
 def get_task(task: str) -> list[dict]:
 

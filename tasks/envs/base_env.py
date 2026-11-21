@@ -35,6 +35,7 @@ class BaseRecorder:
     working_dir: str = None
     namespace: str = None
     task: str = None
+    log_to_stderr: bool = field(default=False, kw_only=True)
 
     def __post_init__(self):
 
@@ -44,13 +45,16 @@ class BaseRecorder:
         self.logger = logging.getLogger(self.namespace)
         self.logger.setLevel(logging.DEBUG)
 
-        file_handler = logging.FileHandler(self.file_path)
         formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(message)s'))
+        if self.log_to_stderr:
+            self.logger.propagate = False
+            console_handler.setFormatter(formatter)
+        else:
+            file_handler = logging.FileHandler(self.file_path)
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+            console_handler.setFormatter(logging.Formatter('%(message)s'))
         self.logger.addHandler(console_handler)
 
         self.current_task_id: int = None
