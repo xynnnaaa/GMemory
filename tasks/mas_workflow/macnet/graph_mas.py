@@ -60,7 +60,7 @@ class MacNet(MetaMAS):
         for node in self._agent_nodes.values():
             self.hire([node._agent])
         self.set_env(env)
-        self.meta_memory = mas_memory
+        self.set_memory(mas_memory, self._decision_node._agent)
     
     def schedule(self, task_config: dict) -> tuple[float, bool]:
         """
@@ -193,7 +193,7 @@ class MacNet(MetaMAS):
         # Final feedback and memory update
         final_reward, final_done, final_feedback = self.env.feedback()
         self.notify_observers(final_feedback)
-        self.meta_memory.save_task_context(label=final_done, feedback=final_feedback) 
+        self.save_episode(final_reward, final_done, final_feedback)
         self.meta_memory.backward(final_done)    
 
         return final_reward, final_done    

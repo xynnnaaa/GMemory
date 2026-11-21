@@ -5,7 +5,7 @@ if [ -f "./.env" ]; then
 fi
 
 # Options:
-# --mas_memory:    empty, chatdev, metagpt, voyager, generative, memorybank, g-memory
+# --mas_memory:    empty, chatdev, metagpt, voyager, generative, memorybank, g-memory, comem
 # --mas_type:      autogen, dylan, macnet
 # --task:          alfworld, fever, pddl, sciworld
 

@@ -4,7 +4,7 @@ from typing import Iterable, Optional, Dict, Any
 
 from .agents import Agent, Env
 from .reasoning import ReasoningBase
-from .memory import MASMemoryBase
+from .memory import CoMem, MASMemoryBase
 
 @dataclass
 class MetaMAS:
@@ -23,6 +23,15 @@ class MetaMAS:
 
     def set_env(self, env: Env) -> None:
         self.env = env
+
+    def set_memory(self, memory, *auxiliary_agents):
+        self.meta_memory = memory
+        if isinstance(memory, CoMem):
+            memory.bind((*self.agents_team.values(), *auxiliary_agents))
+
+    def save_episode(self, reward, done, feedback):
+        kwargs = {'reward': reward} if isinstance(self.meta_memory, CoMem) else {}
+        self.meta_memory.save_task_context(label=done, feedback=feedback, **kwargs)
     
     def get_agent(self, agent_name: str) -> Optional[Agent]:
         return self.agents_team.get(agent_name)

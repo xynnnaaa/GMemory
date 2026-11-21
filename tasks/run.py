@@ -155,6 +155,7 @@ if __name__ == '__main__':
     task_configs.mas_config['threshold'] = args.threshold
     task_configs.mas_config['use_projector'] = args.use_projector
     task_configs.mem_config.update(
+        dataset=task,
         working_dir=WORKING_DIR,
         hop=args.hop
     )

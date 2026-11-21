@@ -63,7 +63,7 @@ class AutoGen(MetaMAS):
             ground_truth_agent
         ])
         self.set_env(env_executor)
-        self.meta_memory = mas_memory
+        self.set_memory(mas_memory)
         
     def add_observer(self, observer):
         self.observers.append(observer)
@@ -197,7 +197,7 @@ class AutoGen(MetaMAS):
         # Final feedback and memory update
         final_reward, final_done, final_feedback = self.env.feedback()
         self.notify_observers(final_feedback)
-        self.meta_memory.save_task_context(label=final_done, feedback=final_feedback)  
+        self.save_episode(final_reward, final_done, final_feedback)
         self.meta_memory.backward(final_done)    
 
         return final_reward, final_done   

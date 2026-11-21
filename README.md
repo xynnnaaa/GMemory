@@ -56,6 +56,22 @@ OPENAI_API_KEY = ""  # for OpenAI LLM backend
     python tasks/run.py --task fever --reasoning io --mas_memory g-memory --mas_trials 15 --mas_type autogen --model <your model here>
     ```
 
+## CoMem (paper-based reproduction)
+
+Use `--mas_memory comem` with `autogen`, `dylan`, or `macnet`. For example, from the repository root:
+
+```sh
+python tasks/run.py --task pddl --mas_type autogen --mas_memory comem --reasoning io --max_trials 30 --model "$MODEL"
+```
+
+Sections 3.2–3.4: reflect on each participating agent's own responses and the public environment transitions. Retrieve by agent **name**, not role. Private and collective results are injected into actual reasoning calls, including auxiliary agents; repeated calls count as one use per insight per episode. Only validated private entries move into the collective pool. Promotion and utility use the final **numeric** environment reward (including partial credit), not the success flag.
+
+Section 4.1 settings: `--insights_topk` defaults to 3 **per stream**; evict private entries after more than 5 consecutive misses on PDDL or 6 on ALFWorld. Promote after at least 3 uses with mean reward at least the historical baseline. Collective utility mixes reward and mean normalized agent rating equally; update the 0–100 score with EMA rate 0.5 and forget below 30. Trajectory top-k and the G-Memory projector do not control CoMem retrieval.
+
+**Reproduction choices, not author-supplied settings:** start scores at 50; use all previous episodes in this environment/run for the baseline, excluding the episode being scored. Use the host embedding model and cosine similarity. Cluster the best `4*k` collective candidates by average linkage with a cosine-distance cut of 0.2; choose each cluster's medoid, breaking ties by query rank. Use the experimental cutoff of 30 immediately after an EMA update (no adaptive schedule or patience is specified). Reflection and 0–10 rating prompts are reconstructed; the distiller sees observable responses, not hidden model reasoning. Non-paper datasets use a private window of 5.
+
+One process owns one `comem.json` checkpoint in the runner's memory directory. It persists across invocations; the task runner does **not** resume its dataset cursor. Start from an empty run directory for an independent benchmark, and do not reuse the same directory across embedding models or backbones (unrecognized model names share the host's `unknown` folder).
+
 ## 🫡 Citation
 If you find this repository helpful, a citation to our paper would be greatly appreciated:
 ```
