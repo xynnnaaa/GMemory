@@ -39,7 +39,9 @@ class LLMCallable(Protocol):
         temperature: float = TEMPERATURE,
         max_tokens: int = MAX_TOKEN,
         stop_strs: Optional[List[str]] = None,
-        num_comps: int = NUM_COMPS
+        num_comps: int = NUM_COMPS,
+        *,
+        grammar: Optional[str] = None,
     ) -> str:
         pass
 
@@ -55,7 +57,9 @@ class LLM(ABC):
         temperature: float = TEMPERATURE,
         max_tokens: int = MAX_TOKEN,
         stop_strs: Optional[List[str]] = None,
-        num_comps: int = NUM_COMPS
+        num_comps: int = NUM_COMPS,
+        *,
+        grammar: Optional[str] = None,
     ) -> str:
         pass
 
@@ -74,12 +78,16 @@ class GPTChat(LLM):
         temperature: float = TEMPERATURE,
         max_tokens: int = MAX_TOKEN,
         stop_strs: Optional[List[str]] = None,
-        num_comps: int = NUM_COMPS
+        num_comps: int = NUM_COMPS,
+        *,
+        grammar: Optional[str] = None,
     ) -> str:
         import time
         global prompt_tokens, completion_tokens
         
         messages = [{"role": msg.role, "content": msg.content} for msg in messages]
+
+        request_options = {"extra_body": {"grammar": grammar}} if grammar is not None else {}
 
         max_retries = 5  
         wait_time = 1 
@@ -92,7 +100,8 @@ class GPTChat(LLM):
                     max_tokens=max_tokens,
                     temperature=temperature,
                     n=num_comps,
-                    stop=stop_strs
+                    stop=stop_strs,
+                    **request_options,
                 )
 
                 answer = response.choices[0].message.content

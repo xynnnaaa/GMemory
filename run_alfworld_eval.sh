@@ -1,12 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-methods=(comem g-memory)
-case "$#:${1:-}" in
-    0:) ;;
-    1:comem|1:g-memory) methods=("$1") ;;
-    *) printf 'Usage: %s [comem|g-memory]\n' "$0" >&2; exit 2 ;;
+usage() {
+    printf 'Usage: %s [--dataset alfworld|pddl] [comem|g-memory]\n' "$0"
+}
+
+dataset=alfworld
+method=
+while (($#)); do
+    case "$1" in
+        --dataset)
+            if (($# < 2)); then
+                usage >&2
+                exit 2
+            fi
+            dataset=$2
+            shift
+            ;;
+        comem|g-memory)
+            if [[ -n $method ]]; then
+                usage >&2
+                exit 2
+            fi
+            method=$1
+            ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+    shift
+done
+case "$dataset" in
+    alfworld) qwen_port=18452 ;;
+    pddl) qwen_port=18453 ;;
+    *) usage >&2; exit 2 ;;
 esac
+methods=(comem g-memory)
+if [[ -n $method ]]; then
+    methods=("$method")
+fi
 
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 source /home/xuyining/miniconda3/etc/profile.d/conda.sh
@@ -14,22 +45,22 @@ conda activate gmemory
 
 qwen_launcher=/data1/xuyining/conda-envs/GMemory-assets/qwen-local/start-qwen.sh
 model=Qwen/Qwen2.5-14B-Instruct
-endpoint=http://127.0.0.1:18452
-state_root="$PWD/.db/alfworld-autogen-eval"
-log_dir="$PWD/my_logs/alfworld/autogen/qwen2.5-14b-instruct"
+endpoint="http://127.0.0.1:$qwen_port"
+state_root="$PWD/.db/$dataset-autogen-eval"
+log_dir="$PWD/my_logs/$dataset/autogen/qwen2.5-14b-instruct"
 
-export OPENAI_API_BASE="$endpoint/v1" OPENAI_API_KEY=local-gmemory
+export OPENAI_API_BASE="$endpoint/v1" OPENAI_API_KEY=local-gmemory GMEMORY_LLAMA_CPP=1
 export NO_PROXY="${NO_PROXY:+$NO_PROXY,}127.0.0.1,localhost"
 export no_proxy="$NO_PROXY" PYTHONUNBUFFERED=1
 
 mkdir -p -- "$state_root"
 exec 9>"$state_root/eval.lock"
 if ! flock -n 9; then
-    printf 'An AutoGen + ALFWorld evaluation is already running.\n' >&2
+    printf 'An AutoGen evaluation for %s is already running.\n' "$dataset" >&2
     exit 1
 fi
-if [[ -n $(ss -H -ltn '( sport = :18452 )') ]]; then
-    printf 'Port 18452 is already in use. Stop that service before starting this evaluation.\n' >&2
+if [[ -n $(ss -H -ltn "( sport = :$qwen_port )") ]]; then
+    printf 'Port %s is already in use. Stop that service before starting this evaluation.\n' "$qwen_port" >&2
     exit 1
 fi
 
@@ -53,7 +84,8 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-"$qwen_launcher" > "$state_dir/qwen-server.log" 2>&1 9>&- &
+printf 'Local Qwen: %s\n' "$endpoint"
+GMEMORY_QWEN_PORT="$qwen_port" "$qwen_launcher" > "$state_dir/qwen-server.log" 2>&1 9>&- &
 server_pid=$!
 ready=false
 for ((attempt = 0; attempt < 60; attempt++)); do
@@ -75,7 +107,7 @@ status=0
 for method in "${methods[@]}"; do
     log_file="$log_dir/$method.log"
     printf 'Starting %s. Log: %s\n' "$method" "$log_file"
-    setsid python -u tasks/run.py --task alfworld --mas_type autogen \
+    setsid python -u tasks/run.py --task "$dataset" --mas_type autogen \
         --mas_memory "$method" --reasoning io --max_trials 30 --model "$model" \
         --working_dir "$state_dir/$method" --log_to_stderr \
         > "$log_file" 2>&1 9>&- &

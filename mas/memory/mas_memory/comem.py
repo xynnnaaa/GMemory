@@ -16,6 +16,9 @@ from mas.llm import Message
 from .memory_base import MASMemoryBase
 
 
+SCORE_GRAMMAR = 'root ::= "10" ("." "0"+)? | [0-9] ("." [0-9]+)?'
+
+
 @dataclass
 class Insight:
     owner: str
@@ -110,10 +113,18 @@ class CoMem(MASMemoryBase):
         super().move_memory_state(action, observation, **kwargs)
         self.steps.append({'action': action, 'observation': observation})
 
-    def _ask(self, instruction, evidence):
+    def _ask(self, instruction, evidence, *, allow_trailing_text=False):
+        options = {}
+        if not allow_trailing_text and os.getenv('GMEMORY_LLAMA_CPP') == '1':
+            options['grammar'] = SCORE_GRAMMAR
         raw = self.llm_model([Message('system', instruction), Message('user', json.dumps(evidence))],
-                             temperature=0)
+                             temperature=0, **options)
         body = (raw or '').strip()
+        if not allow_trailing_text:
+            fence = re.fullmatch(r'```(?:json)?[ \t]*\r?\n(.*?)\r?\n[ \t]*```', body,
+                                 re.IGNORECASE | re.DOTALL)
+            return json.loads(fence[1] if fence else body)
+
         decoder = json.JSONDecoder()
         try:
             return decoder.raw_decode(body)[0]
@@ -162,7 +173,8 @@ class CoMem(MASMemoryBase):
         for owner, trace in evidence.items():
             texts = self._ask('Reflect only on the indicated agent’s own decisions and observed outcomes. '
                               'Distill up to three short, transferable, actionable personal insights. '
-                              'Return only a JSON array of strings; return [] if none are warranted.', trace)
+                              'Return only a JSON array of strings; return [] if none are warranted.', trace,
+                              allow_trailing_text=True)
             if not isinstance(texts, list) or not all(isinstance(text, str) for text in texts):
                 raise ValueError('Invalid CoMem reflection')
             texts = list(dict.fromkeys(text.strip() for text in texts if text.strip()))[:3]
