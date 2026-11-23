@@ -58,6 +58,8 @@ OPENAI_API_KEY = ""  # for OpenAI LLM backend
 
 ## CoMem (paper-based reproduction)
 
+For the promotion-only ALFWorld/MacNet RL experiment, see [training and evaluation](experiments/promotion/README.md).
+
 Use `--mas_memory comem` with `autogen`, `dylan`, or `macnet`. For example, from the repository root:
 
 ```sh

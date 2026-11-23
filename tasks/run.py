@@ -71,6 +71,7 @@ def build_mas(
     reasoning: str = None,
     mas_memory: str = None,
     llm_type: str = None,
+    memory_class=None,
 ) -> None:
     
     embed_func = EmbeddingFunc(CONFIG.get('embedding_model', "sentence-transformers/all-MiniLM-L6-v2")) 
@@ -78,7 +79,7 @@ def build_mas(
 
     llm_model: LLMCallable = GPTChat(model_name=llm_type)
     reasoning_module: ReasoningBase = reasoning_module_type(llm_model=llm_model)
-    mas_memory_module: MASMemoryBase = mas_memory_module_type(
+    mas_memory_module: MASMemoryBase = (memory_class or mas_memory_module_type)(
         namespace=mas_memory,
         global_config=task_manager.mem_config,
         llm_model=llm_model,
@@ -88,29 +89,34 @@ def build_mas(
     task_manager.mas.add_observer(task_manager.recorder)  
     task_manager.mas.build_system(reasoning_module, mas_memory_module, task_manager.env, task_manager.mas_config)
 
+def run_episode(task_manager, task_id, task_config):
+    task_manager.recorder.task_begin(task_id, task_config)
+
+    task_main, task_description = task_manager.mas.env.set_env(task_config)
+    few_shots: list[str] = get_task_few_shots(
+        dataset=task_manager.task_name,
+        task_config=task_config,
+        few_shots_num=CONFIG.get(task_manager.task_name).get('few_shots_num', 0)
+    )
+    task_config.update(task_main=task_main, task_description=task_description, few_shots=few_shots)
+
+    task_instruction: str = get_dataset_system_prompt(task_manager.task_name, task_config=task_config)
+    for agent in task_manager.mas.agents_team.values():
+        task_manager.recorder.log(f'------------ MAS Agent: {agent.name} ------------')
+        task_manager.recorder.log(agent.add_task_instruction(task_instruction))
+
+    reward, done = task_manager.mas.schedule(task_config)
+
+    task_manager.recorder.task_end(reward, done)
+    return reward, done
+
+
 def run_task(task_manager: TaskManager) -> None:
 
     task_manager.recorder.dataset_begin()
     
     for task_id, task_config in tqdm(enumerate(task_manager.tasks), total=len(task_manager.tasks), desc="Running Tasks"):
-        task_manager.recorder.task_begin(task_id, task_config)  
-        
-        task_main, task_description = task_manager.mas.env.set_env(task_config)   
-        few_shots: list[str] = get_task_few_shots(
-            dataset=task_manager.task_name, 
-            task_config=task_config,
-            few_shots_num=CONFIG.get(task_manager.task_name).get('few_shots_num', 0)
-        )
-        task_config.update(task_main=task_main, task_description=task_description, few_shots=few_shots)
-           
-        task_instruction: str = get_dataset_system_prompt(task_manager.task_name, task_config=task_config)
-        for agent in task_manager.mas.agents_team.values():    
-            task_manager.recorder.log(f'------------ MAS Agent: {agent.name} ------------')
-            task_manager.recorder.log(agent.add_task_instruction(task_instruction))
-
-        reward, done = task_manager.mas.schedule(task_config) 
-    
-        task_manager.recorder.task_end(reward, done)             
+        run_episode(task_manager, task_id, task_config)
     
     task_manager.recorder.dataset_end()
 

@@ -134,6 +134,10 @@ class CoMem(MASMemoryBase):
                 return decoder.raw_decode(body[fence.end():].lstrip())[0]
             raise
 
+    def should_promote(self, item, baseline):
+        return item.uses >= 3 and (item.reward_sum / item.uses >= baseline or
+                                   math.isclose(item.reward_sum / item.uses, baseline, abs_tol=1e-12))
+
     def save_task_context(self, label, feedback=None, *, reward):
         reward = float(reward)
         if not 0 <= reward <= 1:
@@ -162,8 +166,7 @@ class CoMem(MASMemoryBase):
                     item.score = 0.5 * item.score + 0.5 * 100 * utility
                     if item.score < 30:
                         continue
-                elif item.uses >= 3 and (item.reward_sum / item.uses >= baseline or
-                                         math.isclose(item.reward_sum / item.uses, baseline, abs_tol=1e-12)):
+                elif self.should_promote(item, baseline):
                     item.promoted = True
             elif not item.promoted:
                 item.misses += 1
